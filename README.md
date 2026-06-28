@@ -1,5 +1,9 @@
 # 节点纯净度检测 · clash-node-purity-test (CNPT)
 
+> 批量检测 Clash 节点出口 IP 纯净度，自动挑出各地区最干净的节点并生成报告。零配置自动发现 Clash Verge，多源打分（IPPure + IPing），通用地区识别。
+>
+> *Batch-check the IP purity of Clash proxy nodes, pick the cleanest per region, and generate a report. Zero-config auto-discovery of Clash Verge.*
+
 一个本地运行的命令行工具，批量检测 [Clash Verge](https://github.com/clash-verge-rev/clash-verge-rev) 里代理节点的**出口 IP 纯净度**，按地区挑出最干净的节点，并以**记事本报告 + 弹窗摘要**呈现结果。
 
 > 适用场景：机场/自建节点的出口 IP 经常被标记为代理、机房或高风险，导致流媒体、AI 服务弹验证码或拒绝访问。逐个手查太麻烦，这个工具把「切节点 → 查 IP → 打分 → 排序 → 出报告」整个流程自动化了。
@@ -151,3 +155,7 @@ copy local_config.json.example local_config.json
 ## License
 
 [MIT](./LICENSE)
+
+---
+
+<sub>关键词 / Topics: `clash` · `clash-verge` · `mihomo` · `proxy` · `proxy-checker` · `ip-quality` · `ip-purity` · `fraud-score` · `python` · `windows`</sub>
