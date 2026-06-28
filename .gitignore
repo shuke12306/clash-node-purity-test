@@ -1,0 +1,23 @@
+# ===== 本机私有配置（含密钥/真实节点，绝不能进仓库）=====
+local_config.json
+config.yaml
+
+# ===== 运行产物 =====
+node_test_result.json
+节点测试结果.json
+节点纯净度报告.txt
+*.log
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ===== 编辑器 / 系统 =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

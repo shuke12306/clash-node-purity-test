@@ -1,0 +1,39 @@
+{
+  "_说明": "本文件可选。删掉本行后复制为 local_config.json 即可使用。所有字段都有默认值或可自动探测；只填你想覆盖的项，其余留空/删除。",
+
+  "_clash说明": "留空时工具会自动从本机 Clash Verge 读取 API 地址、密钥、代理端口；想手动指定再填。",
+  "clash": {
+    "api": "",
+    "secret": "",
+    "http_proxy": "",
+    "select_group": ""
+  },
+
+  "_paths说明": "config_file 留空时自动用 Clash Verge 当前 profile 作为节点源；想用自己的节点文件再填。",
+  "paths": {
+    "config_file": "",
+    "result_file": "node_test_result.json",
+    "report_file": "节点纯净度报告.txt"
+  },
+
+  "_regions说明": "target=每次默认测试的地区；all=允许识别的地区全集（影响 --regions 可选值）。",
+  "regions": {
+    "target": ["美国", "台湾", "日本", "新加坡"],
+    "import": ["美国", "台湾", "日本", "新加坡"]
+  },
+
+  "_report说明": "报告呈现方式：open_notepad=测试后用记事本打开报告；popup=弹窗显示各地区最优摘要。",
+  "report": {
+    "open_notepad": true,
+    "popup": true
+  },
+
+  "_purity说明": "已内置一个可分发的 IPInfo token；想用自己的再填 ipinfo_token。",
+  "purity_sources": {
+    "ipinfo_enabled": true,
+    "ipinfo_token": "",
+    "iping_enabled": true
+  },
+
+  "_region_match说明": "可选。地区识别别名表，默认已覆盖主流机场命名（中文名/城市/英文/代码/国旗）。需要新增地区或别名时才填，格式见 README。"
+}

@@ -1,0 +1,60 @@
+# 节点源配置示例（config.example.yaml）— 通常你不需要这个文件
+#
+# 默认情况下，本工具会自动发现 Clash Verge 当前启用的 profile，直接用它的
+# `proxies` 作为节点源，无需手动维护节点列表。
+#
+# 仅在以下情况才需要它：
+#   - 你不用 Clash Verge（自动探测不可用），想手动指定节点源
+#   - 你只想测试某一份固定的节点清单，而不是当前 profile
+# 用法：
+#   1. 复制本文件为 config.yaml
+#   2. 把下面的示例节点替换成你自己的真实节点
+#   3. 在 local_config.json 里把 paths.config_file 指向它，并加 "auto_detect": false
+#   4. config.yaml 已在 .gitignore 中，不会被提交
+#
+# 这是一份标准的 Clash 代理配置片段，本工具只读取其中的 `proxies` 列表。
+# 节点名可用任意常见机场命名：中文名/城市/拼音、英文、两字母代码、国旗 emoji
+# 都能被识别地区（如「香港01」「🇺🇸 US 洛杉矶」「JP_Tokyo」均可）。
+
+proxies:
+  - name: "香港01"
+    type: vmess
+    server: example-hk.your-domain.com
+    port: 443
+    uuid: 00000000-0000-0000-0000-000000000000
+    alterId: 0
+    cipher: auto
+    network: ws
+    tls: true
+    servername: example-hk.your-domain.com
+    ws-opts:
+      path: /path
+      headers:
+        Host: example-hk.your-domain.com
+
+  - name: "美国01"
+    type: vless
+    server: example-us.your-domain.com
+    port: 443
+    uuid: 00000000-0000-0000-0000-000000000000
+    network: ws
+    tls: true
+    servername: example-us.your-domain.com
+    udp: true
+    ws-opts:
+      path: /path
+      headers:
+        Host: example-us.your-domain.com
+
+  - name: "日本01"
+    type: trojan
+    server: example-jp.your-domain.com
+    port: 443
+    password: your-password-here
+    network: ws
+    tls: true
+    sni: example-jp.your-domain.com
+    ws-opts:
+      path: /path
+      headers:
+        Host: example-jp.your-domain.com
