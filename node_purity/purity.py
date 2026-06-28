@@ -787,7 +787,7 @@ def save_results(results, regions, partial=False):
     # 把本次结果追加进历史归档（best-effort，失败绝不影响主流程）。
     try:
         from . import history
-        history.append_results(results)
+        history.append_history(results)
     except Exception as exc:
         LOG.debug("写入历史归档失败: %s", exc)
 

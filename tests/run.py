@@ -252,6 +252,8 @@ def test_html_report():
     print("== HTML 报告 ==")
     from node_purity import report_html
 
+    # 用生产代码真正消费的 key（all_ranked），不是 ranked——
+    # 早先这里误写成 ranked，导致趋势/风险/失败表从未被喂到数据。
     payload = {
         "tested_at": "2026-01-01 00:00:00",
         "by_region": {
@@ -260,7 +262,7 @@ def test_html_report():
                  "purity_score": 10, "source_scores": {"ippure": 10, "iping_web": 10}},
             ],
         },
-        "ranked": [
+        "all_ranked": [
             {"node": "HK<script>alert(1)</script>", "exit_ip": "1.1.1.1",
              "purity_score": 10, "source_scores": {"ippure": 10, "iping_web": 10}},
         ],
@@ -279,6 +281,49 @@ def test_html_report():
         check_true("写出 HTML 文件", os.path.exists(path))
 
 
+# ===== 8. 装配回归：save_results 真的会写历史归档（防 Bug #1 回归）=====
+def test_save_results_writes_history():
+    print("== 装配：save_results → 历史归档 ==")
+    from node_purity import config, purity
+
+    # 隔离：把结果文件、历史归档都指向临时目录，跑完恢复，绝不碰真实产物。
+    saved = {
+        "RESULT_FILE": purity.RESULT_FILE,
+        "TARGET_REGIONS": purity.TARGET_REGIONS,
+        "IMPORT_REGIONS": purity.IMPORT_REGIONS,
+        "HISTORY_FILE": config.HISTORY_FILE,
+        "HISTORY_KEEP": config.HISTORY_KEEP,
+    }
+    with tempfile.TemporaryDirectory() as d:
+        purity.RESULT_FILE = os.path.join(d, "result.json")
+        purity.TARGET_REGIONS = ["香港"]
+        purity.IMPORT_REGIONS = ["香港"]
+        config.HISTORY_FILE = os.path.join(d, "h.jsonl")
+        config.HISTORY_KEEP = 50
+        try:
+            results = [
+                {"node": "香港 01", "exit_ip": "1.1.1.1", "purity_score": 12,
+                 "source_scores": {"ippure": 12, "iping_web": 12}},
+                {"node": "香港 02", "error": "切换失败"},
+            ]
+            purity.save_results(results, ["香港"], partial=False)
+            # Bug #1：save_results 误调用不存在的 history.append_results，
+            # 被 best-effort 的 except 吞掉 → 历史归档从不写入。这里直接验真实落盘。
+            from node_purity import history
+            recs = history.load_history(config.HISTORY_FILE)
+            nodes = {r.get("node") for r in recs}
+            check("历史归档已落盘", os.path.exists(config.HISTORY_FILE), True)
+            check("两节点都进归档", nodes, {"香港 01", "香港 02"})
+            series = history.node_trends(path=config.HISTORY_FILE, limit=5)
+            check("有分节点进趋势序列", series.get("香港 01"), [12.0])
+        finally:
+            purity.RESULT_FILE = saved["RESULT_FILE"]
+            purity.TARGET_REGIONS = saved["TARGET_REGIONS"]
+            purity.IMPORT_REGIONS = saved["IMPORT_REGIONS"]
+            config.HISTORY_FILE = saved["HISTORY_FILE"]
+            config.HISTORY_KEEP = saved["HISTORY_KEEP"]
+
+
 def main():
     print("=" * 50)
     print("CNPT 测试套件")
@@ -290,6 +335,7 @@ def main():
     test_detect_graceful()
     test_history_archive()
     test_history_compact()
+    test_save_results_writes_history()
     test_html_report()
     print("=" * 50)
     print(f"结果: {_PASS} passed, {_FAIL} failed")
