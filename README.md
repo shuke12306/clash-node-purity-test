@@ -49,20 +49,27 @@
 ```bash
 git clone https://github.com/YOUR_NAME/clash-node-purity-test.git
 cd clash-node-purity-test
-pip install -r requirements.txt
+pip install -r requirements.txt      # macOS / Linux 用 pip3
 ```
 
 ## 使用
 
-### Windows 双击（推荐）
+### 一键启动（推荐）
 
-双击 `一键优选.bat`，显示菜单：
+- **Windows**：双击 `一键优选.bat`
+- **macOS / Linux**：在项目目录执行 `./run.sh`（首次需 `chmod +x run.sh`，克隆时一般已带可执行位）
+
+都会显示菜单：
 
 1. 正常运行（纯净度测试 + 生成报告）
 2. 仅测试节点（只写结果文件，不出报告）
 3. 仅生成报告（用现有测试结果，不重新测试）
 
+两个启动器都会透传额外参数，例如 `./run.sh --regions 台湾,日本 --report both`。
+
 ### 命令行
+
+Windows 用 `python`，macOS / Linux 用 `python3`：
 
 ```bash
 python node_purity_tool.py            # 测试后生成报告（默认）
@@ -76,12 +83,14 @@ python node_purity_tool.py menu       # 显示 1/2/3 菜单
 | 参数 | 说明 |
 |------|------|
 | `--regions 台湾,日本` | 只测指定地区（仅 `menu`/`all`/`test` 有效）；结果合并进现有文件，其他地区保留 |
-| `--report notepad\|popup\|both\|none` | 报告呈现方式：记事本 / 弹窗 / 两者 / 都不（默认两者） |
+| `--report notepad\|popup\|both\|none` | 报告呈现方式：打开报告文件 / 弹窗 / 两者 / 都不（默认两者） |
 | `--format text\|html\|both` | 报告格式：纯文本 / 自包含 HTML / 两者都出（默认 text） |
 | `--no-detect` | 跳过 Clash Verge 自动探测，只用 `local_config.json` / 默认值 |
 | `--yes` / `-y` | 无人值守，跳过询问 |
 | `--verbose` | 显示详细请求与重试日志 |
 | `--log-file <路径>` | 把详细日志写入文件 |
+
+> **平台差异**：`--report notepad` 在 Windows 用记事本打开报告，macOS / Linux 用系统默认程序打开（`open` / `xdg-open`）。`--report popup` 的原生弹窗仅 Windows 有；macOS / Linux 会自动跳过（各地区最优摘要已打印在控制台）。参数名保持一致，效果按平台自适应。
 
 ## 配置（通常不需要）
 
