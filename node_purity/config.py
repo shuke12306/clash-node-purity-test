@@ -144,6 +144,7 @@ DEFAULT_LOCAL_CONFIG = {
         "config_file": "",
         "result_file": "node_test_result.json",
         "report_file": "节点纯净度报告.txt",
+        "history_file": "node_history.jsonl",
     },
     "clash": {
         "api": "",
@@ -166,6 +167,10 @@ DEFAULT_LOCAL_CONFIG = {
     "report": {
         "open_notepad": True,
         "popup": True,
+        # 报告格式：text=纯文本，html=自包含网页，both=两者都出
+        "format": "text",
+        # 历史归档每个节点最多保留的记录条数（用于趋势对比），0=不限
+        "history_keep": 50,
     },
     "purity_sources": {
         "ipinfo_enabled": True,
@@ -256,6 +261,8 @@ _CONFIG_FILE_RAW = str(_PATHS.get("config_file", "") or "").strip()
 CONFIG_FILE_EXPLICIT = bool(_CONFIG_FILE_RAW)
 CONFIG_FILE = resolve_config_path(_CONFIG_FILE_RAW) if _CONFIG_FILE_RAW else ""
 RESULT_FILE = resolve_config_path(_PATHS.get("result_file", DEFAULT_LOCAL_CONFIG["paths"]["result_file"]))
+# 历史归档：每次测试后把各节点精简记录追加到这个 JSONL，供趋势对比；只追加不重写。
+HISTORY_FILE = resolve_config_path(_PATHS.get("history_file", DEFAULT_LOCAL_CONFIG["paths"]["history_file"]))
 # REPORT_FILE 是报告的「基准路径」：决定报告写到哪个目录、用什么基础名；
 # 实际文件名由 report_path() 在运行时拼成「基础名_配置名_日期.txt」，每次新建保留历史。
 REPORT_FILE = resolve_config_path(_PATHS.get("report_file", DEFAULT_LOCAL_CONFIG["paths"]["report_file"]))
@@ -337,6 +344,29 @@ SWITCH_VERIFY_TIMEOUT = float(
 
 REPORT_OPEN_NOTEPAD = config_bool(_REPORT.get("open_notepad"), DEFAULT_LOCAL_CONFIG["report"]["open_notepad"])
 REPORT_POPUP = config_bool(_REPORT.get("popup"), DEFAULT_LOCAL_CONFIG["report"]["popup"])
+
+
+def _normalize_report_format(value):
+    fmt = str(value or "").strip().lower()
+    return fmt if fmt in ("text", "html", "both") else "text"
+
+
+REPORT_FORMAT = _normalize_report_format(
+    _REPORT.get("format", DEFAULT_LOCAL_CONFIG["report"]["format"])
+)
+
+
+def _coerce_history_keep(value, default):
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return default
+    return n if n >= 0 else default
+
+
+HISTORY_KEEP = _coerce_history_keep(
+    _REPORT.get("history_keep"), DEFAULT_LOCAL_CONFIG["report"]["history_keep"]
+)
 
 
 def _api_headers():

@@ -9,11 +9,12 @@
     "select_group": ""
   },
 
-  "_paths说明": "config_file 留空时自动用 Clash Verge 当前 profile 作为节点源；想用自己的节点文件再填。",
+  "_paths说明": "config_file 留空时自动用 Clash Verge 当前 profile 作为节点源；想用自己的节点文件再填。history_file=历史归档（JSONL），用于趋势对比。",
   "paths": {
     "config_file": "",
     "result_file": "node_test_result.json",
-    "report_file": "节点纯净度报告.txt"
+    "report_file": "节点纯净度报告.txt",
+    "history_file": "node_history.jsonl"
   },
 
   "_regions说明": "target=每次默认测试的地区；all=允许识别的地区全集（影响 --regions 可选值）。",
@@ -22,10 +23,12 @@
     "import": ["美国", "台湾", "日本", "新加坡"]
   },
 
-  "_report说明": "报告呈现方式：open_notepad=测试后用记事本打开报告；popup=弹窗显示各地区最优摘要。",
+  "_report说明": "报告呈现方式：open_notepad=测试后用记事本打开报告；popup=弹窗显示各地区最优摘要。format=报告格式 text/html/both；history_keep=每节点在归档里保留的最近记录数（趋势用，超量自动压实）。",
   "report": {
     "open_notepad": true,
-    "popup": true
+    "popup": true,
+    "format": "text",
+    "history_keep": 50
   },
 
   "_purity说明": "已内置一个可分发的 IPInfo token；想用自己的再填 ipinfo_token。weights=各来源在综合分里的权重，默认 IPPure 与 IPing 网页各 0.5（即 50/50）；只对实际出分的来源生效，某源不可用时剩余权重自动归一化。",

@@ -77,6 +77,7 @@ python node_purity_tool.py menu       # 显示 1/2/3 菜单
 |------|------|
 | `--regions 台湾,日本` | 只测指定地区（仅 `menu`/`all`/`test` 有效）；结果合并进现有文件，其他地区保留 |
 | `--report notepad\|popup\|both\|none` | 报告呈现方式：记事本 / 弹窗 / 两者 / 都不（默认两者） |
+| `--format text\|html\|both` | 报告格式：纯文本 / 自包含 HTML / 两者都出（默认 text） |
 | `--no-detect` | 跳过 Clash Verge 自动探测，只用 `local_config.json` / 默认值 |
 | `--yes` / `-y` | 无人值守，跳过询问 |
 | `--verbose` | 显示详细请求与重试日志 |
@@ -99,6 +100,8 @@ copy local_config.json.example local_config.json
 | `paths.config_file` | 自定义节点源文件；**留空时自动用 Clash Verge 当前 profile** |
 | `regions.target` | 每次默认测试的地区 |
 | `report.open_notepad` / `popup` | 报告是否开记事本 / 弹窗 |
+| `report.format` | 报告格式 `text` / `html` / `both`（默认 `text`） |
+| `report.history_keep` | 每节点在历史归档里保留的最近记录数（趋势用，默认 50） |
 | `purity_sources.ipinfo_token` | 已内置一个可分发 token；想用自己的再填 |
 | `region_match` | 地区识别别名表，默认已覆盖主流命名；需要新增地区时才填 |
 
@@ -142,6 +145,12 @@ copy local_config.json.example local_config.json
 - **配置名**取 Clash Verge 当前 profile 的显示名；取不到时回退到节点源文件名，仍取不到则省略。
 - 基础名（`节点纯净度报告`）可在 `local_config.json` 的 `paths.report_file` 自定义。
 - 报告文件是本机产物，已在 `.gitignore` 中，不会被提交。旧报告需要清理时自行删除即可。
+
+### 历史趋势与 HTML 报告
+
+- **历史趋势**：每轮测试会把各节点的综合分追加进 `node_history.jsonl`（只追加，本机产物，已忽略提交）。报告里会多出一段「趋势」，显示每个节点最近几次的分数走势（`最新 ← 次新 ← …`）和方向标记（↓改善 / ↑恶化 / →平稳）。首次运行因无历史会自动跳过该段。
+- **保留条数**：在 `local_config.json` 的 `report.history_keep` 控制每节点保留的最近记录数（默认 50），超量时自动压实归档文件。
+- **HTML 报告**：`--format html`（或 `both`）生成一份自包含的 HTML 报告，内联样式、无任何外部依赖，可直接用浏览器打开或分享。节点名等内容均做了 HTML 转义，恶意命名无法破坏页面。也可在 `report.format` 里设默认格式。
 
 ### 数据来源与打分逻辑
 

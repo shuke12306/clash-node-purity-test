@@ -184,6 +184,101 @@ def test_detect_graceful():
     check("不存在目录 profile=None", (path, name), (None, ""))
 
 
+# ===== 6. 历史归档（JSONL 追加 + 惰性压实 + 趋势聚合）=====
+def test_history_archive():
+    print("== 历史归档 + 趋势 ==")
+    from node_purity import history
+
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "h.jsonl")
+
+        # 第一次：两节点各一条
+        r1 = [
+            {"node": "HK-01", "exit_ip": "1.1.1.1", "purity_score": 10},
+            {"node": "JP-01", "exit_ip": "2.2.2.2", "purity_score": 50},
+        ]
+        history.append_history(r1, tested_at="20260101_000000", path=path, keep=50)
+        recs = history.load_history(path)
+        check("首次写入 2 条", len(recs), 2)
+
+        # 失败节点也归档（带 error），但无分不进趋势序列
+        r2 = [
+            {"node": "HK-01", "exit_ip": "1.1.1.2", "purity_score": 5},
+            {"node": "JP-01", "error": "切换失败"},
+        ]
+        history.append_history(r2, tested_at="20260102_000000", path=path, keep=50)
+        recs = history.load_history(path)
+        check("二次后共 4 条", len(recs), 4)
+
+        # 趋势：HK 有两点(10->5)，JP 只剩一点有分
+        series = history.node_trends(path=path, limit=5)
+        check("HK 趋势两点", series.get("HK-01"), [10.0, 5.0])
+        check("JP 趋势一点", series.get("JP-01"), [50.0])
+
+        # 方向：HK 10->5 差 -5 视为改善
+        direction, symbol = history.trend_direction(series["HK-01"])
+        check("HK 改善方向", direction, "改善")
+        check("HK 改善符号", symbol, "↓")
+        # 不足两点 -> 空
+        check("单点无方向", history.trend_direction([50.0]), ("", ""))
+
+        # 损坏行不影响读取
+        with open(path, "a", encoding="utf-8") as f:
+            f.write("这不是 json\n")
+        check("跳过损坏行后仍 4 条", len(history.load_history(path)), 4)
+
+
+def test_history_compact():
+    print("== 历史惰性压实 ==")
+    from node_purity import history
+
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "h.jsonl")
+        # 同一节点写 5 次，keep=3 应压实到 3 条且留最近的
+        for i in range(5):
+            history.append_history(
+                [{"node": "N", "purity_score": i * 10}],
+                tested_at=f"2026010{i}_000000", path=path, keep=3,
+            )
+        recs = history.load_history(path)
+        check("压实到 keep=3", len(recs), 3)
+        series = history.node_trends(path=path, limit=10)
+        # 最近 3 次是 i=2,3,4 -> 20,30,40
+        check("压实保留最近 3 点", series.get("N"), [20.0, 30.0, 40.0])
+
+
+# ===== 7. HTML 报告（自包含 + 转义防注入）=====
+def test_html_report():
+    print("== HTML 报告 ==")
+    from node_purity import report_html
+
+    payload = {
+        "tested_at": "2026-01-01 00:00:00",
+        "by_region": {
+            "香港": [
+                {"node": "HK<script>alert(1)</script>", "exit_ip": "1.1.1.1",
+                 "purity_score": 10, "source_scores": {"ippure": 10, "iping_web": 10}},
+            ],
+        },
+        "ranked": [
+            {"node": "HK<script>alert(1)</script>", "exit_ip": "1.1.1.1",
+             "purity_score": 10, "source_scores": {"ippure": 10, "iping_web": 10}},
+        ],
+    }
+    html = report_html.build_report_html(payload)
+    check_true("产出 <html>", "<html" in html.lower())
+    check_true("自包含内联 CSS", "<style" in html.lower())
+    check_true("无外链 script src", "src=" not in html.lower())
+    # 安全：恶意节点名必须被转义，不能出现可执行的 <script>
+    check_true("恶意名被转义", "<script>alert(1)</script>" not in html)
+    check_true("转义后保留可见文本", "&lt;script&gt;" in html)
+
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "r.html")
+        report_html.write_html_report(payload, path)
+        check_true("写出 HTML 文件", os.path.exists(path))
+
+
 def main():
     print("=" * 50)
     print("CNPT 测试套件")
@@ -193,6 +288,9 @@ def main():
     test_source_health()
     test_detect_parsing()
     test_detect_graceful()
+    test_history_archive()
+    test_history_compact()
+    test_html_report()
     print("=" * 50)
     print(f"结果: {_PASS} passed, {_FAIL} failed")
     print("=" * 50)

@@ -783,6 +783,14 @@ def save_results(results, regions, partial=False):
     output.update(build_result_payload(results + kept))
     with open(RESULT_FILE, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
+
+    # 把本次结果追加进历史归档（best-effort，失败绝不影响主流程）。
+    try:
+        from . import history
+        history.append_results(results)
+    except Exception as exc:
+        LOG.debug("写入历史归档失败: %s", exc)
+
     return output
 
 

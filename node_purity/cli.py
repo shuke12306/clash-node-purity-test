@@ -7,7 +7,7 @@ from .purity import run_test
 from .report import run_report
 
 
-def run_all(regions, open_notepad=None, popup=None, assume_yes=False):
+def run_all(regions, open_notepad=None, popup=None, report_format=None, assume_yes=False):
     print_section("节点纯净度检测")
     print(f"本次测试地区: {', '.join(regions)}")
 
@@ -17,10 +17,10 @@ def run_all(regions, open_notepad=None, popup=None, assume_yes=False):
         return False
 
     print_step("阶段 2/2：生成纯净度报告")
-    return run_report(open_notepad=open_notepad, popup=popup)
+    return run_report(open_notepad=open_notepad, popup=popup, report_format=report_format)
 
 
-def run_menu(regions, open_notepad=None, popup=None):
+def run_menu(regions, open_notepad=None, popup=None, report_format=None):
     print_section("节点纯净度检测菜单")
     print("请选择运行模式：")
     print_menu_table([
@@ -35,11 +35,11 @@ def run_menu(regions, open_notepad=None, popup=None):
         return False
 
     if choice == "1":
-        return run_all(regions, open_notepad=open_notepad, popup=popup, assume_yes=True)
+        return run_all(regions, open_notepad=open_notepad, popup=popup, report_format=report_format, assume_yes=True)
     if choice == "2":
         return run_test(regions, assume_yes=True)
     if choice == "3":
-        return run_report(open_notepad=open_notepad, popup=popup)
+        return run_report(open_notepad=open_notepad, popup=popup, report_format=report_format)
 
     print(f"\n✗ 无效选择: {choice or '（空）'}。请输入 1、2 或 3。")
     return False
@@ -78,7 +78,13 @@ def build_parser():
     parser.add_argument(
         "--report",
         choices=("notepad", "popup", "both", "none"),
-        help="报告呈现方式：notepad=只开记事本，popup=只弹窗，both=两者，none=都不（默认读配置，两者都开）",
+        help="报告呈现方式：notepad=只开记事本/默认程序，popup=只弹窗，both=两者，none=都不（默认读配置，两者都开）",
+    )
+    parser.add_argument(
+        "--format",
+        dest="report_format",
+        choices=("text", "html", "both"),
+        help="报告格式：text=纯文本，html=自包含网页，both=两者（默认读配置，缺省 text）",
     )
     parser.add_argument(
         "--yes", "-y",
@@ -126,16 +132,17 @@ def main(argv=None):
             print("ℹ --regions 只影响 menu/all/test 的测试范围，对当前命令无效。")
 
         open_notepad, popup = resolve_report_flags(args.report)
+        report_format = args.report_format
 
         ok = True
         if args.command == "all":
-            ok = run_all(regions, open_notepad=open_notepad, popup=popup, assume_yes=args.yes)
+            ok = run_all(regions, open_notepad=open_notepad, popup=popup, report_format=report_format, assume_yes=args.yes)
         elif args.command == "menu":
-            ok = run_menu(regions, open_notepad=open_notepad, popup=popup)
+            ok = run_menu(regions, open_notepad=open_notepad, popup=popup, report_format=report_format)
         elif args.command == "test":
             ok = run_test(regions, assume_yes=args.yes)
         elif args.command == "report":
-            ok = run_report(open_notepad=open_notepad, popup=popup)
+            ok = run_report(open_notepad=open_notepad, popup=popup, report_format=report_format)
         finish_with_summary(args.command, ok, started_at)
         return 0 if ok else 1
     except KeyboardInterrupt:

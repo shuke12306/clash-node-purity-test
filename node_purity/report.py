@@ -119,11 +119,44 @@ def build_report_text(payload):
             lines.append(f"  {row.get('node', '?'):16s} {row.get('error', '无评分')}")
         lines.append("")
 
+    trend_lines = build_trend_lines(ranked)
+    if trend_lines:
+        lines.append("-" * 60)
+        lines.append("纯净度走势（本次测过的节点，最新 ← 历史；分越低越干净）")
+        lines.append("-" * 60)
+        lines.extend(trend_lines)
+        lines.append("")
+
     lines.append("=" * 60)
     lines.append("评分分级: 0-25 低风险 / 26-50 中风险 / 51-75 高风险 / 76-100 极高风险")
     lines.append("数据来源: IPPure 欺诈分 + IPing 网页风险（50/50），IPInfo 补充 ASN/地区")
     lines.append("=" * 60)
     return "\n".join(lines) + "\n"
+
+
+def build_trend_lines(ranked, limit=5):
+    """为本次测过、且历史里有 >=2 次记录的节点生成走势行。
+
+    没有历史归档或所有节点都只有一次记录时返回 []（首次运行静默跳过）。
+    """
+    from . import history
+
+    series = history.node_trends(limit=limit)
+    if not series:
+        return []
+
+    out = []
+    seen = set()
+    for row in ranked:
+        node = row.get("node")
+        if not node or node in seen:
+            continue
+        seen.add(node)
+        scores = series.get(node)
+        if not scores or len(scores) < 2:
+            continue
+        out.append("  " + history.format_trend_line(node, scores))
+    return out
 
 
 def build_popup_summary(payload, path):
@@ -180,8 +213,12 @@ def show_popup(title, body):
         return False
 
 
-def run_report(open_notepad=None, popup=None):
-    """读取现有测试结果，生成报告文件并按设置打开记事本 / 弹窗。"""
+def run_report(open_notepad=None, popup=None, report_format=None):
+    """读取现有测试结果，生成报告文件并按设置打开 / 弹窗。
+
+    report_format: text|html|both；None 时读 config.REPORT_FORMAT（默认 text）。
+    text/html 都按 report_path() 命名（同基础名不同扩展名），每次新建、保留历史。
+    """
     print_section("生成纯净度报告")
     describe_result_age()
 
@@ -193,14 +230,38 @@ def run_report(open_notepad=None, popup=None):
         open_notepad = REPORT_OPEN_NOTEPAD
     if popup is None:
         popup = REPORT_POPUP
+    if report_format is None:
+        report_format = config.REPORT_FORMAT
+    report_format = str(report_format).lower()
+    if report_format not in ("text", "html", "both"):
+        report_format = "text"
 
-    # 本次报告路径：运行时拼出 <基础名>_<配置名>_<日期>.txt，每次新建、保留历史。
+    want_text = report_format in ("text", "both")
+    want_html = report_format in ("html", "both")
+
+    # 本次报告基准路径（.txt）；HTML 用同基础名换 .html。每次新建、保留历史。
     report_file = config.report_path()
+    written = []
 
-    text = build_report_text(payload)
-    if not write_report_file(text, report_file):
-        return False
-    print(f"✓ 报告已生成: {report_file}")
+    if want_text:
+        text = build_report_text(payload)
+        if write_report_file(text, report_file):
+            print(f"✓ 文本报告已生成: {report_file}")
+            written.append(report_file)
+        else:
+            return False
+
+    if want_html:
+        from . import report_html
+        html_file = os.path.splitext(report_file)[0] + ".html"
+        html_text = report_html.build_report_html(payload)
+        if write_report_file(html_text, html_file):
+            print(f"✓ HTML 报告已生成: {html_file}")
+            written.append(html_file)
+        else:
+            # HTML 失败不致命：若文本已出则继续，否则报错
+            if not written:
+                return False
 
     # 控制台也打印一份各地区最优摘要
     picks = best_per_region(payload.get("by_region") or {})
@@ -215,9 +276,11 @@ def run_report(open_notepad=None, popup=None):
     else:
         print("⚠ 没有可用评分节点。")
 
-    if open_notepad:
-        open_report_file(report_file)
+    # 打开主报告：HTML 优先（更直观），否则文本
+    if open_notepad and written:
+        primary = next((p for p in written if p.endswith(".html")), written[0])
+        open_report_file(primary)
     if popup:
-        show_popup("节点纯净度报告", build_popup_summary(payload, report_file))
+        show_popup("节点纯净度报告", build_popup_summary(payload, written[0] if written else report_file))
 
     return True
