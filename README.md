@@ -1,6 +1,8 @@
 # 节点纯净度检测 · clash-node-purity-test (CNPT)
 
-> 批量检测 Clash 节点出口 IP 纯净度，自动挑出各地区最干净的节点并生成报告。零配置自动发现 Clash Verge，多源打分（IPPure + IPing），通用地区识别。
+[![CI](https://github.com/shuke12306/clash-node-purity-test/actions/workflows/ci.yml/badge.svg)](https://github.com/shuke12306/clash-node-purity-test/actions/workflows/ci.yml)
+
+> 批量检测 Clash 节点出口 IP 纯净度，自动挑出各地区最干净的节点并生成报告。零配置自动发现 Clash 客户端，多源打分（IPPure + IPing），通用地区识别。
 >
 > *Batch-check the IP purity of Clash proxy nodes, pick the cleanest per region, and generate a report. Zero-config auto-discovery of Clash Verge.*
 
@@ -12,7 +14,7 @@
 
 ## 特点
 
-- **零配置**：自动从本机 Clash Verge 读出 API 地址、密钥、代理端口和当前 profile，免去手填。
+- **零配置**：自动从本机 Clash 客户端读出 API 地址、密钥、代理端口和当前 profile，免去手填。
 - **通用地区识别**：参照 [ACL4SSR](https://github.com/ACL4SSR/ACL4SSR) 的分组规则，支持中文名、城市名、运营商别名、英文全称、两字母代码、国旗 emoji，兼容绝大多数机场命名。
 - **多来源综合评分**：IPPure 欺诈分 + IPing 网页风险等级（50/50 加权），IPInfo 补充 ASN/地区。
 - **IP 类型识别**：住宅 / 原生 / 机房 / 广播，按优先级选优。
@@ -21,8 +23,26 @@
 
 ## 环境要求
 
-- Windows + [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev)，已开启「外部控制器」
-- Python 3.8+
+- Python 3.9+
+- 一个基于 mihomo（Clash.Meta）内核的客户端，并已开启「外部控制器」
+
+### 支持的客户端与平台
+
+自动探测会在常见配置目录里查找客户端的运行时 `config.yaml`（含 `external-controller` / `secret` / `mixed-port`），解析逻辑对 mihomo 内核类客户端通用：
+
+| 客户端 | 自动探测 |
+|--------|----------|
+| [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev) | ✅ |
+| Mihomo Party | ✅ |
+| 其他 mihomo 内核客户端 | ⚠️ 取决于配置目录；探测不到时手填即可 |
+
+| 平台 | 自动探测 | 报告打开 | 弹窗摘要 |
+|------|----------|----------|----------|
+| Windows | ✅ | 记事本/默认程序 | ✅ 原生弹窗 |
+| macOS | ✅ | `open` 默认程序 | ⚠️ 降级为控制台摘要 |
+| Linux | ✅ | `xdg-open` 默认程序 | ⚠️ 降级为控制台摘要 |
+
+> 探测不到客户端（或用其他客户端）时，在 `local_config.json` 的 `clash.api` / `secret` / `http_proxy` 手填即可，对任何平台都通用。弹窗目前仅 Windows 有原生实现，其他平台报告内容照常生成、并在控制台打印摘要。
 
 ## 安装
 

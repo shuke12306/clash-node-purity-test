@@ -150,18 +150,23 @@ def write_report_file(text, path):
         return False
 
 
-def open_in_notepad(path):
-    if os.name != "nt":
-        return False
+def open_report_file(path):
+    """用系统默认程序打开报告文件，跨平台。打不开只记日志，不影响主流程。"""
     try:
-        subprocess.Popen(["notepad.exe", path])
+        if os.name == "nt":
+            os.startfile(path)  # noqa: P204 - Windows 专属，用默认程序打开
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", path])
+        else:
+            subprocess.Popen(["xdg-open", path])
         return True
     except Exception as exc:
-        LOG.debug("打开记事本失败: %s", exc)
+        LOG.debug("打开报告文件失败: %s", exc)
         return False
 
 
 def show_popup(title, body):
+    """Windows 下弹原生消息框；其他平台无原生弹窗，优雅降级（控制台已打印摘要）。"""
     if os.name != "nt":
         return False
     try:
@@ -211,7 +216,7 @@ def run_report(open_notepad=None, popup=None):
         print("⚠ 没有可用评分节点。")
 
     if open_notepad:
-        open_in_notepad(report_file)
+        open_report_file(report_file)
     if popup:
         show_popup("节点纯净度报告", build_popup_summary(payload, report_file))
 

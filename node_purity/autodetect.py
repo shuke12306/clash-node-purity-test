@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-零配置自动发现：从本机 Clash Verge 的运行时文件里读出连接参数和当前 profile，
-免去用户手填 API 地址、密钥、代理端口、profile 路径。
+零配置自动发现：从本机 Clash 内核类客户端的运行时文件里读出连接参数和当前
+profile，免去用户手填 API 地址、密钥、代理端口、profile 路径。
 
-读取来源（Windows，Clash Verge Rev 默认布局）：
-  %APPDATA%\\io.github.clash-verge-rev.clash-verge-rev\\
-      config.yaml     运行时内核配置：external-controller / secret / mixed-port
-      profiles.yaml   current: <uid> 指向当前启用的 profile
-      profiles\\<uid>.yaml  当前 profile，本工具直接拿它的 proxies 当节点源
+支持的客户端基于 mihomo / Clash 内核，其运行时 config.yaml 用同一套字段
+（external-controller / secret / mixed-port），所以探测逻辑通用，差异只在
+配置目录的位置。已知候选目录覆盖：
+  - Clash Verge Rev（io.github.clash-verge-rev.clash-verge-rev）
+  - 旧版 Clash Verge（clash-verge）
+  - Mihomo Party（mihomo-party）
+跨平台目录根：
+  - Windows: %APPDATA%
+  - macOS:   ~/Library/Application Support
+  - Linux:   $XDG_CONFIG_HOME 或 ~/.config
 
-探测是 best-effort：任何一步失败都不报错，只是该项保持原值（来自 local_config.json
-或内置默认），让用户仍可手填回退。非 Windows 环境直接跳过。
+探测是 best-effort：任何一步失败都不报错，只是该项保持原值（来自
+local_config.json 或内置默认），让用户仍可手填回退。找不到任何客户端目录时
+静默跳过，不影响手填使用。
 """
 
 import os
+import sys
 
 import requests
 import yaml
@@ -28,20 +35,56 @@ from .config import (
 )
 
 
-def clash_verge_dir():
-    """返回 Clash Verge 配置目录；不存在则返回 None。"""
-    appdata = os.environ.get("APPDATA")
-    if not appdata:
-        return None
-    candidates = [
-        os.path.join(appdata, "io.github.clash-verge-rev.clash-verge-rev"),
-        # 旧版本目录名兜底
-        os.path.join(appdata, "clash-verge"),
-    ]
-    for path in candidates:
-        if os.path.isdir(path):
-            return path
-    return None
+# 已知 Clash 内核类客户端的配置目录名（相对各平台配置根目录）。
+# 顺序即优先级：先命中的先用。
+_CLIENT_DIR_NAMES = (
+    "io.github.clash-verge-rev.clash-verge-rev",  # Clash Verge Rev
+    "clash-verge",                                 # 旧版 Clash Verge
+    "mihomo-party",                                # Mihomo Party
+    "ClashMetaForAndroid",                         # 兜底（极少出现在桌面）
+)
+
+
+def _config_home_dirs():
+    """按平台返回可能存放客户端配置的根目录列表（仅返回存在的）。"""
+    roots = []
+    if sys.platform.startswith("win"):
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            roots.append(appdata)
+        local = os.environ.get("LOCALAPPDATA")
+        if local:
+            roots.append(local)
+    elif sys.platform == "darwin":
+        home = os.path.expanduser("~")
+        roots.append(os.path.join(home, "Library", "Application Support"))
+        roots.append(os.path.join(home, ".config"))
+    else:  # linux / 其他类 unix
+        xdg = os.environ.get("XDG_CONFIG_HOME")
+        if xdg:
+            roots.append(xdg)
+        roots.append(os.path.join(os.path.expanduser("~"), ".config"))
+
+    seen = set()
+    out = []
+    for root in roots:
+        if root and root not in seen and os.path.isdir(root):
+            seen.add(root)
+            out.append(root)
+    return out
+
+
+def _candidate_client_dirs():
+    """遍历平台配置根 × 已知客户端目录名，返回真实存在的客户端目录列表。"""
+    out = []
+    seen = set()
+    for root in _config_home_dirs():
+        for name in _CLIENT_DIR_NAMES:
+            path = os.path.join(root, name)
+            if path not in seen and os.path.isdir(path):
+                seen.add(path)
+                out.append(path)
+    return out
 
 
 def _load_yaml(path):
@@ -54,9 +97,12 @@ def _load_yaml(path):
         return None
 
 
-def detect_runtime(verge_dir):
-    """从 config.yaml 解析 external-controller / secret / mixed-port。"""
-    cfg = _load_yaml(os.path.join(verge_dir, "config.yaml"))
+def detect_runtime(client_dir):
+    """从 config.yaml 解析 external-controller / secret / mixed-port。
+
+    这是 mihomo/Clash 内核运行时配置的通用格式，与具体客户端无关。
+    """
+    cfg = _load_yaml(os.path.join(client_dir, "config.yaml"))
     if not cfg:
         return {}
 
@@ -88,14 +134,14 @@ def _strip_yaml_ext(value):
     return value
 
 
-def detect_current_profile(verge_dir):
+def detect_current_profile(client_dir):
     """从 profiles.yaml 的 current 找到当前 profile 文件路径与显示名。
 
     返回 (profile_path, display_name)；找不到返回 (None, "")。
     显示名优先取 items 里的 name 字段（去 .yaml 后缀），回退到文件名 stem，
     再回退到 uid，供报告文件命名使用。
     """
-    profiles = _load_yaml(os.path.join(verge_dir, "profiles.yaml"))
+    profiles = _load_yaml(os.path.join(client_dir, "profiles.yaml"))
     if not profiles:
         return None, ""
     current = profiles.get("current")
@@ -113,7 +159,7 @@ def detect_current_profile(verge_dir):
     if not file_name:
         file_name = f"{current}.yaml"
 
-    profile_path = os.path.join(verge_dir, "profiles", file_name)
+    profile_path = os.path.join(client_dir, "profiles", file_name)
     if not os.path.isfile(profile_path):
         return None, ""
 
@@ -138,8 +184,10 @@ def detect_select_group_via_api():
 
     这才是运行时真相：像「🚀 节点选择」这种组常由 Clash Verge 合并 Merge/Script
     在运行时生成，只存在于 API，不在 profile 静态文件里。
-    优先名字含关键词的组，否则取成员最多的（排除 GLOBAL）。读不到返回 ""。
+    优先名字含关键词的组，否则取成员最多的（含 GLOBAL）。读不到返回 ""。
     """
+    if not config.CLASH_API:
+        return ""
     try:
         resp = requests.get(
             f"{config.CLASH_API}/proxies",
@@ -199,30 +247,22 @@ def detect_select_group_from_profile(profile_path):
     return str(best.get("name", ""))
 
 
-def autodetect(verbose=True):
-    """运行自动探测并把结果应用到 config 全局；返回探测到的字段摘要 dict。"""
-    if os.name != "nt":
-        if verbose:
-            cprint("ℹ 非 Windows 环境，跳过 Clash Verge 自动探测，使用 local_config.json / 默认值。")
-        return {}
+def _apply_from_client_dir(client_dir, summary):
+    """从单个客户端目录解析并应用运行时参数；成功填入 summary 返回 True。"""
+    runtime = detect_runtime(client_dir)
+    if not runtime.get("api"):
+        # 没有 external-controller 的目录对本工具没用，跳过
+        return False
 
-    verge_dir = clash_verge_dir()
-    if not verge_dir:
-        if verbose:
-            cprint("ℹ 未发现 Clash Verge 配置目录，使用 local_config.json / 默认值。")
-        return {}
+    apply_clash_runtime(
+        api=runtime.get("api"),
+        secret=runtime.get("secret"),
+        http_proxy=runtime.get("http_proxy"),
+    )
+    summary.update(runtime)
+    summary["client_dir"] = client_dir
 
-    summary = {}
-    runtime = detect_runtime(verge_dir)
-    if runtime:
-        apply_clash_runtime(
-            api=runtime.get("api"),
-            secret=runtime.get("secret"),
-            http_proxy=runtime.get("http_proxy"),
-        )
-        summary.update(runtime)
-
-    profile_path, profile_name = detect_current_profile(verge_dir)
+    profile_path, profile_name = detect_current_profile(client_dir)
     if profile_path:
         # 用户没在 local_config.json 显式指定节点源时，才用当前 profile 作为节点源；
         # 显式指定了就尊重用户选择，不覆盖。
@@ -239,10 +279,31 @@ def autodetect(verbose=True):
             if group:
                 apply_clash_runtime(select_group=group)
                 summary["select_group"] = group
+    return True
+
+
+def autodetect(verbose=True):
+    """运行自动探测并把结果应用到 config 全局；返回探测到的字段摘要 dict。
+
+    跨平台、多客户端：遍历候选客户端目录，第一个能解析出 external-controller
+    的就采用。找不到任何客户端时静默返回空 dict，用户仍可手填使用。
+    """
+    candidates = _candidate_client_dirs()
+    if not candidates:
+        if verbose:
+            cprint("ℹ 未发现 Clash 客户端配置目录，使用 local_config.json / 默认值。")
+        return {}
+
+    summary = {}
+    for client_dir in candidates:
+        if _apply_from_client_dir(client_dir, summary):
+            break
 
     if verbose:
         if summary:
-            cprint("✓ 已自动发现 Clash Verge 配置：")
+            cprint("✓ 已自动发现 Clash 客户端配置：")
+            if "client_dir" in summary:
+                cprint(f"  配置目录: {summary['client_dir']}")
             if "api" in summary:
                 cprint(f"  外部控制器: {summary['api']}")
             if "http_proxy" in summary:
@@ -256,5 +317,5 @@ def autodetect(verbose=True):
                 cprint(f"  切换组: {summary['select_group']}")
             cprint("  （以上可在 local_config.json 中手动覆盖）")
         else:
-            cprint("⚠ 找到 Clash Verge 目录但未解析出可用参数，请检查 local_config.json。")
+            cprint("⚠ 找到客户端目录但未解析出可用参数，请检查 local_config.json。")
     return summary

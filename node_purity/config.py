@@ -47,7 +47,8 @@ except Exception:
 
 # ===== 本地配置（项目根目录为基准，整个文件夹可整体移动）=====
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-APPDATA_DIR = os.environ.get("APPDATA") or os.path.expanduser(r"~\AppData\Roaming")
+# %APPDATA% 仅 Windows 有意义；非 Windows 给个无害回退（这些平台的配置一般不含该变量）。
+APPDATA_DIR = os.environ.get("APPDATA") or os.path.expanduser("~")
 LOCAL_CONFIG_FILE = os.path.join(BASE_DIR, "local_config.json")
 
 
