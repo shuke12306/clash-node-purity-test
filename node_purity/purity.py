@@ -332,10 +332,22 @@ def combine_purity_score(ippure_info, iping_info=None, iping_web_risk=None):
         "iping": score_iping(iping_info),
         "ipinfo": None,
     }
-    available = [score for score in source_scores.values() if score is not None]
-    if not available:
+    # 只对「实际出分」的来源加权，缺失来源自动退出、剩余权重重新归一化：
+    #   - 配了权重的源用其权重；没配权重的出分源按等权（权重 1）参与。
+    #   - 全部源都没出分 → None（与旧行为一致，标记为无评分）。
+    #   - SOURCE_WEIGHTS 为空 dict 表示「等权平均」，等价于旧逻辑。
+    present = {k: v for k, v in source_scores.items() if v is not None}
+    if not present:
         return None, source_scores
-    return round(sum(available) / len(available), 1), source_scores
+
+    weights = {k: float(config.SOURCE_WEIGHTS.get(k, 1.0)) for k in present}
+    total_w = sum(weights.values())
+    if total_w <= 0:
+        # 出分的源都被显式配成 0 权重，退回等权，避免除零
+        weighted = sum(present.values()) / len(present)
+    else:
+        weighted = sum(present[k] * weights[k] for k in present) / total_w
+    return round(weighted, 1), source_scores
 
 
 def source_score_summary(row):
@@ -673,6 +685,63 @@ def retest_failed_nodes(results, nodes_by_name, group_map):
             print(f"  ⚠ 补测仍未取得更好结果，保留「{name}」原记录")
 
 
+def summarize_source_health(results):
+    """从测试结果统计各数据源的成功率，用于「数据源健康度」提示。
+
+    只统计成功切换（无 error）的节点为分母；某源在该节点出了分/拿到数据记为成功。
+    返回 {source_key: (success, total)}；total=0 时不计入。
+    """
+    rows = [row for row in results if isinstance(row, dict) and "error" not in row]
+    total = len(rows)
+    health = {
+        "ippure": 0,
+        "iping_web": 0,
+        "iping": 0,
+        "ipinfo": 0,
+    }
+    if total == 0:
+        return {}, 0
+    for row in rows:
+        scores = row.get("source_scores") if isinstance(row.get("source_scores"), dict) else {}
+        if scores.get("ippure") is not None:
+            health["ippure"] += 1
+        if scores.get("iping_web") is not None:
+            health["iping_web"] += 1
+        # iping / ipinfo 不出分，按是否拿到数据对象判断可用性
+        if isinstance(row.get("iping"), dict):
+            health["iping"] += 1
+        if isinstance(row.get("ipinfo"), dict):
+            health["ipinfo"] += 1
+    return health, total
+
+
+_SOURCE_HEALTH_LABELS = {
+    "ippure": "IPPure",
+    "iping_web": "IPing网页",
+    "iping": "IPing API",
+    "ipinfo": "IPInfo",
+}
+
+
+def format_source_health(health, total):
+    """把 summarize_source_health 的结果格式化成一行可读文本。"""
+    if not health or total == 0:
+        return ""
+    parts = []
+    for key in ("ippure", "iping_web", "iping", "ipinfo"):
+        if key not in health:
+            continue
+        ok = health[key]
+        label = _SOURCE_HEALTH_LABELS.get(key, key)
+        flag = ""
+        if ok == 0:
+            flag = "（疑似不可用）"
+        elif ok < total * 0.5:
+            flag = "（成功率偏低）"
+        parts.append(f"{label} {ok}/{total}{flag}")
+    return " · ".join(parts)
+
+
 def save_results(results, regions, partial=False):
     """合并旧结果后写入 RESULT_FILE，返回最终 payload。
 
@@ -708,6 +777,9 @@ def save_results(results, regions, partial=False):
     output = {"tested_at": now_str(), "tested_regions": list(regions)}
     if partial:
         output["partial"] = True
+    health, health_total = summarize_source_health(results)
+    if health_total:
+        output["source_health"] = {"counts": health, "total": health_total}
     output.update(build_result_payload(results + kept))
     with open(RESULT_FILE, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
@@ -721,6 +793,11 @@ def print_test_summary(output):
 
     print_section("测试完成！")
     print(f"\n结果已保存: {RESULT_FILE}\n")
+
+    health_info = output.get("source_health") or {}
+    health_line = format_source_health(health_info.get("counts"), health_info.get("total", 0))
+    if health_line:
+        print(f"数据源健康度: {health_line}\n")
 
     print("汇总（先按 IP 类型优先级，再按综合分；越靠前越优先）:")
     display_rank = 0

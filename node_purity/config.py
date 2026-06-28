@@ -171,6 +171,12 @@ DEFAULT_LOCAL_CONFIG = {
         # 内置企业版 IPInfo token（免费、可分发）；如需自备可在 local_config.json 覆盖。
         "ipinfo_token": "151dcf905c7667",
         "iping_enabled": True,
+        # 综合纯净度分的各来源权重；只有出分的来源参与，缺失/挂掉时自动归一化。
+        # 留空或全零会回退到等权平均。当前出分的来源是 ippure 与 iping_web。
+        "weights": {
+            "ippure": 0.5,
+            "iping_web": 0.5,
+        },
     },
 }
 
@@ -287,6 +293,38 @@ IPING_ENABLED = config_bool(
     _PURITY_SOURCES.get("iping_enabled"),
     DEFAULT_LOCAL_CONFIG["purity_sources"]["iping_enabled"],
 )
+
+
+def _load_source_weights(raw):
+    """读取并校验各来源权重；非法（负数/非数字/全零/空）时回退到等权（空 dict）。
+
+    返回 {source_key: float>0}；空 dict 表示「等权平均」。
+    """
+    default = DEFAULT_LOCAL_CONFIG["purity_sources"]["weights"]
+    if not isinstance(raw, dict):
+        return dict(default)
+    cleaned = {}
+    bad = False
+    for key, value in raw.items():
+        try:
+            w = float(value)
+        except (TypeError, ValueError):
+            bad = True
+            continue
+        if w < 0:
+            bad = True
+            continue
+        if w > 0:
+            cleaned[str(key)] = w
+    if bad:
+        print("⚠ purity_sources.weights 含非法值（负数/非数字），已忽略这些项。")
+    if not cleaned:
+        print("⚠ purity_sources.weights 无有效权重，回退到等权平均。")
+        return {}
+    return cleaned
+
+
+SOURCE_WEIGHTS = _load_source_weights(_PURITY_SOURCES.get("weights"))
 
 # 测试节奏：节点间基础间隔；IPPure 拿不到分时自动翻倍退避（上限 MAX_INTERVAL），成功则衰减回基础值
 BASE_INTERVAL = float(_TIMING.get("base_interval", DEFAULT_LOCAL_CONFIG["timing"]["base_interval"]))

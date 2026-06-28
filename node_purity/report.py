@@ -53,6 +53,12 @@ def build_report_text(payload):
         lines.append(f"测试地区: {'、'.join(tested_regions)}")
     if partial:
         lines.append("⚠ 本结果来自一次被中断的测试（partial），数据可能不完整。")
+    health = payload.get("source_health")
+    if isinstance(health, dict) and health.get("total"):
+        from .purity import format_source_health
+        health_line = format_source_health(health.get("counts") or {}, health.get("total") or 0)
+        if health_line:
+            lines.append(f"数据源健康度: {health_line}")
     lines.append("")
 
     picks = best_per_region(by_region)

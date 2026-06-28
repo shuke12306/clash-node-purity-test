@@ -28,11 +28,15 @@
     "popup": true
   },
 
-  "_purity说明": "已内置一个可分发的 IPInfo token；想用自己的再填 ipinfo_token。",
+  "_purity说明": "已内置一个可分发的 IPInfo token；想用自己的再填 ipinfo_token。weights=各来源在综合分里的权重，默认 IPPure 与 IPing 网页各 0.5（即 50/50）；只对实际出分的来源生效，某源不可用时剩余权重自动归一化。",
   "purity_sources": {
     "ipinfo_enabled": true,
     "ipinfo_token": "",
-    "iping_enabled": true
+    "iping_enabled": true,
+    "weights": {
+      "ippure": 0.5,
+      "iping_web": 0.5
+    }
   },
 
   "_region_match说明": "可选。地区识别别名表，默认已覆盖主流机场命名（中文名/城市/英文/代码/国旗）。需要新增地区或别名时才填，格式见 README。"
