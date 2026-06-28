@@ -249,7 +249,12 @@ _CONFIG_FILE_RAW = str(_PATHS.get("config_file", "") or "").strip()
 CONFIG_FILE_EXPLICIT = bool(_CONFIG_FILE_RAW)
 CONFIG_FILE = resolve_config_path(_CONFIG_FILE_RAW) if _CONFIG_FILE_RAW else ""
 RESULT_FILE = resolve_config_path(_PATHS.get("result_file", DEFAULT_LOCAL_CONFIG["paths"]["result_file"]))
+# REPORT_FILE 是报告的「基准路径」：决定报告写到哪个目录、用什么基础名；
+# 实际文件名由 report_path() 在运行时拼成「基础名_配置名_日期.txt」，每次新建保留历史。
 REPORT_FILE = resolve_config_path(_PATHS.get("report_file", DEFAULT_LOCAL_CONFIG["paths"]["report_file"]))
+# 当前节点源（Clash Verge profile）的显示名，由 autodetect 通过 apply_node_source 填入；
+# 用于报告文件名。留空时 report_path() 回退到节点源文件名，再回退到仅日期。
+PROFILE_NAME = ""
 
 
 # ===== Clash / 纯净度信息源配置 =====
@@ -334,11 +339,48 @@ def apply_clash_runtime(api=None, secret=None, http_proxy=None, select_group=Non
     PROXIES = _proxies()
 
 
-def apply_node_source(path):
-    """把节点源文件（通常是 Clash Verge 当前 profile）写入模块级全局。"""
-    global CONFIG_FILE
+def apply_node_source(path, profile_name=None):
+    """把节点源文件（通常是 Clash Verge 当前 profile）写入模块级全局。
+
+    profile_name 为该 profile 的显示名，用于报告文件名；不传则保持原值。
+    """
+    global CONFIG_FILE, PROFILE_NAME
     if path:
         CONFIG_FILE = os.path.abspath(str(path))
+    if profile_name:
+        PROFILE_NAME = str(profile_name)
+
+
+_FILENAME_BAD_CHARS = re.compile(r'[\\/:*?"<>|\r\n\t]+')
+
+
+def _sanitize_filename(text, fallback=""):
+    """清洗成可用作 Windows 文件名的片段：去非法字符、压空白、限长。"""
+    cleaned = _FILENAME_BAD_CHARS.sub("", str(text or "")).strip().strip(".")
+    cleaned = re.sub(r"\s+", "_", cleaned)
+    if len(cleaned) > 40:
+        cleaned = cleaned[:40]
+    return cleaned or fallback
+
+
+def report_path():
+    """运行时拼出本次报告的完整路径：<基础名>_<配置名>_<日期>.txt，每次新建。
+
+    配置名回退链：profile 显示名 → 节点源文件名(去扩展名) → 留空。
+    """
+    base, ext = os.path.splitext(REPORT_FILE)
+    ext = ext or ".txt"
+
+    name_part = _sanitize_filename(PROFILE_NAME)
+    if not name_part and CONFIG_FILE:
+        name_part = _sanitize_filename(os.path.splitext(os.path.basename(CONFIG_FILE))[0])
+
+    date_part = datetime.now().strftime("%Y%m%d_%H%M%S")
+    parts = [base]
+    if name_part:
+        parts.append(name_part)
+    parts.append(date_part)
+    return "_".join(parts) + ext
 
 
 # ===== 地区识别 =====

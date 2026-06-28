@@ -5,7 +5,7 @@ config.yaml
 # ===== 运行产物 =====
 node_test_result.json
 节点测试结果.json
-节点纯净度报告.txt
+节点纯净度报告*.txt
 *.log
 
 # ===== Python =====

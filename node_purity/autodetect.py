@@ -80,26 +80,46 @@ def detect_runtime(verge_dir):
     return result
 
 
+def _strip_yaml_ext(value):
+    value = str(value or "").strip()
+    for ext in (".yaml", ".yml"):
+        if value.lower().endswith(ext):
+            return value[: -len(ext)]
+    return value
+
+
 def detect_current_profile(verge_dir):
-    """从 profiles.yaml 的 current 找到当前 profile 文件路径。"""
+    """从 profiles.yaml 的 current 找到当前 profile 文件路径与显示名。
+
+    返回 (profile_path, display_name)；找不到返回 (None, "")。
+    显示名优先取 items 里的 name 字段（去 .yaml 后缀），回退到文件名 stem，
+    再回退到 uid，供报告文件命名使用。
+    """
     profiles = _load_yaml(os.path.join(verge_dir, "profiles.yaml"))
     if not profiles:
-        return None
+        return None, ""
     current = profiles.get("current")
     if not current:
-        return None
+        return None, ""
 
     # current 可能直接是 uid，也可能在 items 里有对应 file 字段
     file_name = None
+    display_name = ""
     for item in profiles.get("items", []) or []:
         if isinstance(item, dict) and item.get("uid") == current:
             file_name = item.get("file") or f"{current}.yaml"
+            display_name = _strip_yaml_ext(item.get("name"))
             break
     if not file_name:
         file_name = f"{current}.yaml"
 
     profile_path = os.path.join(verge_dir, "profiles", file_name)
-    return profile_path if os.path.isfile(profile_path) else None
+    if not os.path.isfile(profile_path):
+        return None, ""
+
+    if not display_name:
+        display_name = _strip_yaml_ext(file_name) or str(current)
+    return profile_path, display_name
 
 
 _GROUP_KEYWORDS = ("节点选择", "手动", "选择", "Select", "Proxy", "PROXY", "节点")
@@ -202,13 +222,15 @@ def autodetect(verbose=True):
         )
         summary.update(runtime)
 
-    profile_path = detect_current_profile(verge_dir)
+    profile_path, profile_name = detect_current_profile(verge_dir)
     if profile_path:
         # 用户没在 local_config.json 显式指定节点源时，才用当前 profile 作为节点源；
         # 显式指定了就尊重用户选择，不覆盖。
         if not config.CONFIG_FILE_EXPLICIT:
-            apply_node_source(profile_path)
+            apply_node_source(profile_path, profile_name)
             summary["profile"] = profile_path
+            if profile_name:
+                summary["profile_name"] = profile_name
         else:
             summary["profile_skipped"] = profile_path
         # 切换组优先查实时 API（运行时真相），读不到再回退 profile 静态文件

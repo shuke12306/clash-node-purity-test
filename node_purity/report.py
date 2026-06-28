@@ -1,5 +1,6 @@
 from .config import *
 from .clash import *
+from . import config
 
 
 # ===== 读取测试结果并呈现：记事本报告 + 弹窗摘要 =====
@@ -119,7 +120,7 @@ def build_report_text(payload):
     return "\n".join(lines) + "\n"
 
 
-def build_popup_summary(payload):
+def build_popup_summary(payload, path):
     by_region = payload.get("by_region") or {}
     picks = best_per_region(by_region)
     if not picks:
@@ -129,13 +130,13 @@ def build_popup_summary(payload):
         score = result_score(row)
         lines.append(f"{region}  {row.get('node', '?')}  {format_score(score)} {score_status(score)}")
     lines.append("")
-    lines.append(f"详细报告: {REPORT_FILE}")
+    lines.append(f"详细报告: {path}")
     return "\n".join(lines)
 
 
-def write_report_file(text):
+def write_report_file(text, path):
     try:
-        with open(REPORT_FILE, "w", encoding="utf-8") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write(text)
         return True
     except Exception as exc:
@@ -182,10 +183,13 @@ def run_report(open_notepad=None, popup=None):
     if popup is None:
         popup = REPORT_POPUP
 
+    # 本次报告路径：运行时拼出 <基础名>_<配置名>_<日期>.txt，每次新建、保留历史。
+    report_file = config.report_path()
+
     text = build_report_text(payload)
-    if not write_report_file(text):
+    if not write_report_file(text, report_file):
         return False
-    print(f"✓ 报告已生成: {REPORT_FILE}")
+    print(f"✓ 报告已生成: {report_file}")
 
     # 控制台也打印一份各地区最优摘要
     picks = best_per_region(payload.get("by_region") or {})
@@ -201,8 +205,8 @@ def run_report(open_notepad=None, popup=None):
         print("⚠ 没有可用评分节点。")
 
     if open_notepad:
-        open_in_notepad(REPORT_FILE)
+        open_in_notepad(report_file)
     if popup:
-        show_popup("节点纯净度报告", build_popup_summary(payload))
+        show_popup("节点纯净度报告", build_popup_summary(payload, report_file))
 
     return True
